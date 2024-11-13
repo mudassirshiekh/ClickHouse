@@ -69,6 +69,7 @@ static std::initializer_list<std::pair<ClickHouseVersion, SettingsChangesHistory
             {"use_async_executor_for_materialized_views", false, false, "New setting."},
             {"composed_data_type_output_format_mode", "default", "default", "New setting"},
             {"http_response_headers", "", "", "New setting."},
+                {"parallel_replicas_for_cluster_engines", true, true, "New setting"},
         }
     },
     {"24.11",
