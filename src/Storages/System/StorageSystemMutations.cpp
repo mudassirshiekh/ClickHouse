@@ -44,8 +44,8 @@ ColumnsDescription StorageSystemMutations::getColumnsDescription()
         { "latest_fail_time",                     std::make_shared<DataTypeDateTime>(), "The date and time of the most recent part mutation failure."},
         { "latest_fail_reason",                   std::make_shared<DataTypeString>(), "The exception message that caused the most recent part mutation failure."},
         { "latest_fail_error_code_name",          std::make_shared<DataTypeString>(), "The error code of the exception that caused the most recent part mutation failure."},
-        { "num_retries",                          std::make_shared<DataTypeUInt32>(), "The number of times that the mutation has been retried." },
-        { "num_retries_with_current_error_code",  std::make_shared<DataTypeUInt32>(), "The number of times in a row that the mutation has been retried with the same error code." },
+        { "num_retries",                          std::make_shared<DataTypeUInt32>(), "The number of times that the mutation has been retried. Only available in ClickHouse Cloud." },
+        { "num_retries_with_current_error_code",  std::make_shared<DataTypeUInt32>(), "The number of times in a row that the mutation has been retried with the same error code. Only available in ClickHouse Cloud." },
     };
 }
 
