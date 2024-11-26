@@ -30,6 +30,9 @@ struct MergeTreeMutationStatus
     String latest_fail_reason = "";
     String latest_fail_error_code_name = "";
 
+    UInt32 num_retries = 0;
+    UInt32 num_retries_with_current_error_code = 0;
+
     /// FIXME: currently unused, but would be much better to report killed mutations with this flag.
     bool is_killed = false;
 /// NOLINTEND(readability-redundant-string-init)
