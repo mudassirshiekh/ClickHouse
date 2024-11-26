@@ -28,8 +28,6 @@ int mainEntryClickHouseDisks(int argc, char ** argv);
 int mainEntryClickHouseExtractFromConfig(int argc, char ** argv);
 int mainEntryClickHouseFormat(int argc, char ** argv);
 int mainEntryClickHouseGitImport(int argc, char ** argv);
-int mainEntryClickHouseKeeperBench(int argc, char ** argv);
-int mainEntryClickHouseKeeperDataDumper(int argc, char ** argv);
 int mainEntryClickHouseLocal(int argc, char ** argv);
 int mainEntryClickHouseObfuscator(int argc, char ** argv);
 int mainEntryClickHouseSU(int argc, char ** argv);
@@ -54,6 +52,12 @@ int mainEntryClickHouseKeeperConverter(int argc, char ** argv);
 #endif
 #if ENABLE_CLICKHOUSE_KEEPER_CLIENT
 int mainEntryClickHouseKeeperClient(int argc, char ** argv);
+#endif
+#if USE_RAPIDJSON
+int mainEntryClickHouseKeeperBench(int argc, char ** argv);
+#endif
+#if USE_NURAFT
+int mainEntryClickHouseKeeperDataDumper(int argc, char ** argv);
 #endif
 
 // install
@@ -81,8 +85,6 @@ std::pair<std::string_view, MainFunc> clickhouse_applications[] =
     {"format", mainEntryClickHouseFormat},
     {"git-import", mainEntryClickHouseGitImport},
     {"hash-binary", mainEntryClickHouseHashBinary},
-    {"keeper-bench", mainEntryClickHouseKeeperBench},
-    {"keeper-data-dumper", mainEntryClickHouseKeeperDataDumper},
     {"local", mainEntryClickHouseLocal},
     {"obfuscator", mainEntryClickHouseObfuscator},
     {"server", mainEntryClickHouseServer},
@@ -101,7 +103,12 @@ std::pair<std::string_view, MainFunc> clickhouse_applications[] =
 #if ENABLE_CLICKHOUSE_KEEPER_CLIENT
     {"keeper-client", mainEntryClickHouseKeeperClient},
 #endif
-
+#if USE_RAPIDJSON
+    {"keeper-bench", mainEntryClickHouseKeeperBench},
+#endif
+#if USE_NURAFT
+    {"keeper-data-dumper", mainEntryClickHouseKeeperDataDumper},
+#endif
     // install
     {"install", mainEntryClickHouseInstall},
     {"start", mainEntryClickHouseStart},
