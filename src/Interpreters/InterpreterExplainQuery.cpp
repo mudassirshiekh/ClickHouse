@@ -202,6 +202,7 @@ struct QueryPlanSettings
 
     /// Apply query plan optimizations.
     bool optimize = true;
+    bool logical_steps = false;
     bool json = false;
 
     constexpr static char name[] = "PLAN";
@@ -213,6 +214,7 @@ struct QueryPlanSettings
             {"actions", query_plan_options.actions},
             {"indexes", query_plan_options.indexes},
             {"optimize", optimize},
+            {"logical", logical_steps},
             {"json", json},
             {"sorting", query_plan_options.sorting},
     };
@@ -470,7 +472,11 @@ QueryPipeline InterpreterExplainQuery::executeImpl()
             }
 
             if (settings.optimize)
-                plan.optimize(QueryPlanOptimizationSettings::fromContext(context));
+            {
+                auto optimization_settings = QueryPlanOptimizationSettings::fromContext(context);
+                optimization_settings.keep_logical_steps = settings.logical_steps;
+                plan.optimize(optimization_settings);
+            }
 
             if (settings.json)
             {

@@ -148,6 +148,7 @@ void optimizeTreeSecondPass(const QueryPlanOptimizationSettings & optimization_s
 
     stack.push_back({.node = &root});
 
+    bool has_new_join_step = false;
     while (!stack.empty())
     {
         {
@@ -168,6 +169,10 @@ void optimizeTreeSecondPass(const QueryPlanOptimizationSettings & optimization_s
 
                 if (optimization_settings.aggregation_in_order)
                     optimizeAggregationInOrder(*frame.node, nodes);
+
+                has_new_join_step = optimizeJoin(*frame.node, nodes, optimization_settings.keep_logical_steps) || has_new_join_step;
+                if (!has_new_join_step)
+                    optimizeJoinLegacy(*frame.node, nodes);
             }
 
             /// Traverse all children first.
@@ -226,9 +231,6 @@ void addStepsToBuildSets(QueryPlan & plan, QueryPlan::Node & root, QueryPlan::No
     {
         /// NOTE: frame cannot be safely used after stack was modified.
         auto & frame = stack.back();
-
-        if (frame.next_child == 0)
-            optimizeJoin(*frame.node, nodes);
 
         /// Traverse all children first.
         if (frame.next_child < frame.node->children.size())
