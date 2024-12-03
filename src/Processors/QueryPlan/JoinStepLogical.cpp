@@ -431,6 +431,19 @@ static Block blockWithColumns(ColumnsWithTypeAndName columns)
     return block;
 }
 
+static void addToNullableActions(ActionsDAG & dag, const FunctionOverloadResolverPtr & to_nullable_function)
+{
+    for (auto & output_node : dag.getOutputs())
+    {
+        DataTypePtr type_to_check = output_node->result_type;
+        if (const auto * type_to_check_low_cardinality = typeid_cast<const DataTypeLowCardinality *>(type_to_check.get()))
+            type_to_check = type_to_check_low_cardinality->getDictionaryType();
+
+        if (type_to_check->canBeInsideNullable())
+            output_node = &dag.addFunction(to_nullable_function, {output_node}, output_node->result_name);
+    }
+}
+
 JoinPtr JoinStepLogical::convertToPhysical(JoinActionRef & left_filter, JoinActionRef & right_filter, JoinActionRef & post_filter, bool is_explain_logical)
 {
     const auto & settings = query_context->getSettingsRef();
@@ -512,6 +525,15 @@ JoinPtr JoinStepLogical::convertToPhysical(JoinActionRef & left_filter, JoinActi
             table_join_clause.analyzer_left_filter_condition_column_name = left_pre_filter_condition.column_name;
         if (auto right_pre_filter_condition = concatMergeConditions(join_condition.right_filter_conditions, expression_actions.right_pre_join_actions, query_context))
             table_join_clause.analyzer_right_filter_condition_column_name = right_pre_filter_condition.column_name;
+    }
+
+    if (join_settings.join_use_nulls)
+    {
+        auto to_nullable_function = FunctionFactory::instance().get("toNullable", query_context);
+        if (join_info.kind == JoinKind::Left || join_info.kind == JoinKind::Full)
+            addToNullableActions(expression_actions.right_pre_join_actions, to_nullable_function);
+        if (join_info.kind == JoinKind::Right || join_info.kind == JoinKind::Full)
+            addToNullableActions(expression_actions.left_pre_join_actions, to_nullable_function);
     }
 
     JoinActionRef residual_filter_condition(nullptr);

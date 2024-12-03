@@ -1937,8 +1937,6 @@ JoinTreeQueryPlan buildQueryPlanForJoinNode(
 
     auto & left_plan = left_join_tree_query_plan.query_plan;
     auto & right_plan = right_join_tree_query_plan.query_plan;
-    if (settings[Setting::join_use_nulls])
-        joinCastPlanColumnsToNullable(left_plan, right_plan, planner_context, join_node.getKind());
 
     auto join_step_logical = buildJoinStepLogical(
         left_plan.getCurrentHeader(),
