@@ -222,12 +222,18 @@ def fn_setup_tables():
     "select_query",
     [
         "SELECT now() as a, number as b FROM numbers(2)",
-        "SELECT now() as a, b as b FROM src1",
+        "SELECT now() as a, b as b FROM src1 SETTINGS insert_deduplicate=0",
     ],
 )
-@pytest.mark.parametrize("with_append", [True, False])
-@pytest.mark.parametrize("empty", [True, False])
-def test_simple_append(
+@pytest.mark.parametrize(
+    "with_append",
+    [True, False],
+)
+@pytest.mark.parametrize(
+    "empty",
+    [True, False],
+)
+def test_append(
     module_setup_tables,
     fn_setup_tables,
     select_query,
@@ -246,7 +252,6 @@ def test_simple_append(
     node.query(create_sql)
     rmv = get_rmv_info(node, "test_rmv", wait_status="Scheduled")
     assert rmv["exception"] is None
-
     node.query("SYSTEM SYNC DATABASE REPLICA ON CLUSTER default default")
 
     records = node.query("SELECT count() FROM test_rmv")
@@ -256,20 +261,18 @@ def test_simple_append(
     else:
         assert records == "2\n"
 
+    node.query("SYSTEM SYNC DATABASE REPLICA ON CLUSTER default default")
+
     for n in nodes:
         n.query(f"SYSTEM TEST VIEW test_rmv SET FAKE TIME '{rmv['next_refresh_time']}'")
+        time.sleep(1)
+        node.query("SYSTEM SYNC DATABASE REPLICA ON CLUSTER default default")
 
     rmv2 = get_rmv_info(node, "test_rmv", wait_status="Scheduled")
 
     assert rmv2["exception"] is None
 
-    node.query("SYSTEM SYNC DATABASE REPLICA ON CLUSTER default default")
-    if empty:
-        expect = "2\n"
-
-    if not with_append:
-        expect = "2\n"
-
+    expect = "2\n"
     if with_append and not empty:
         expect = "4\n"
 
@@ -380,7 +383,7 @@ def test_real_wait_refresh(
         refresh_interval="EVERY 10 SECOND",
         to_clause=to_clause_,
         table_clause=table_clause,
-        select_query="SELECT now() as a, b FROM src1",
+        select_query="SELECT now() as a, b FROM src1 SETTINGS insert_deduplicate=0",
         with_append=append,
         on_cluster="default",
         empty=empty,
