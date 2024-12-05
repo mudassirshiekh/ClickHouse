@@ -38,6 +38,7 @@ Every month we get together with the community (users, contributors, customers, 
 * [v24.10 Community Call](https://clickhouse.com/company/events/v24-10-community-release-call) - October 31
 
 ## Upcoming Events
+## By Mudassir Alam
 
 Keep an eye out for upcoming meetups and events around the world. Somewhere else you want us to be? Please feel free to reach out to tyler `<at>` clickhouse `<dot>` com. You can also peruse [ClickHouse Events](https://clickhouse.com/company/news-events) for a list of all upcoming trainings, meetups, speaking engagements, etc.
 
