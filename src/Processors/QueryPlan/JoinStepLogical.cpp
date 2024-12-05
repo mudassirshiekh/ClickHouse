@@ -33,6 +33,7 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
     extern const int NOT_IMPLEMENTED;
     extern const int INVALID_JOIN_ON_EXPRESSION;
+    extern const int NOT_FOUND_COLUMN_IN_BLOCK;
 }
 
 std::string_view toString(PredicateOperator op)
@@ -89,6 +90,13 @@ void formatJoinCondition(const JoinCondition & join_condition, WriteBuffer & buf
     if (!join_condition.residual_conditions.empty())
         buf << " " << fmt::format("Residual: ({})", fmt::join(join_condition.residual_conditions | quote_string, ", "));
     buf << "]";
+}
+
+String formatJoinCondition(const JoinCondition & join_condition)
+{
+    WriteBufferFromOwnString buf;
+    formatJoinCondition(join_condition, buf);
+    return buf.str();
 }
 
 std::vector<std::pair<String, String>> describeJoinActions(const JoinInfo & join_info)
@@ -332,7 +340,7 @@ void predicateOperandsToCommonType(JoinPredicate & predicate, JoinExpressionActi
     }
 }
 
-void addJoinConditionToTableJoin(JoinCondition & join_condition, TableJoin::JoinOnClause & table_join_clause, JoinExpressionActions & expression_actions, const ContextPtr & query_context, JoinPlanningContext join_context)
+bool addJoinConditionToTableJoin(JoinCondition & join_condition, TableJoin::JoinOnClause & table_join_clause, JoinExpressionActions & expression_actions, const ContextPtr & query_context, JoinPlanningContext join_context)
 {
     std::vector<JoinPredicate> new_predicates;
     for (size_t i = 0; i < join_condition.predicates.size(); ++i)
@@ -357,14 +365,9 @@ void addJoinConditionToTableJoin(JoinCondition & join_condition, TableJoin::Join
         }
     }
 
-    if (new_predicates.empty())
-    {
-        WriteBufferFromOwnString buf;
-        formatJoinCondition(join_condition, buf);
-        throw Exception(ErrorCodes::INVALID_JOIN_ON_EXPRESSION, "No equality condition found in JOIN ON expression {}", buf.str());
-    }
-
     join_condition.predicates = std::move(new_predicates);
+
+    return !join_condition.predicates.empty();
 }
 
 
@@ -449,7 +452,6 @@ JoinPtr JoinStepLogical::convertToPhysical(JoinActionRef & left_filter, JoinActi
     const auto & settings = query_context->getSettingsRef();
 
     auto table_join = std::make_shared<TableJoin>(settings, query_context->getGlobalTemporaryVolume(), query_context->getTempDataOnDisk());
-    table_join->setJoinInfo(join_info);
 
     auto & join_expression = join_info.expression;
 
@@ -470,9 +472,19 @@ JoinPtr JoinStepLogical::convertToPhysical(JoinActionRef & left_filter, JoinActi
 
     if (!isCrossOrComma(join_info.kind))
     {
-        addJoinConditionToTableJoin(
+        bool has_keys = addJoinConditionToTableJoin(
             join_expression.condition, table_join_clauses.emplace_back(),
             expression_actions, query_context, join_context);
+
+        if (!has_keys)
+        {
+            table_join_clauses.pop_back();
+            bool can_convert_to_cross = (isInner(join_info.kind) || isCrossOrComma(join_info.kind)) && join_info.strictness == JoinStrictness::All;
+            if (!can_convert_to_cross)
+                throw Exception(ErrorCodes::INVALID_JOIN_ON_EXPRESSION, "No equality condition found in JOIN ON expression {}",
+                    formatJoinCondition(join_expression.condition));
+            join_info.kind = JoinKind::Cross;
+        }
     }
 
     if (auto left_pre_filter_condition = concatMergeConditions(join_expression.condition.left_filter_conditions, expression_actions.left_pre_join_actions, query_context))
@@ -590,19 +602,27 @@ JoinPtr JoinStepLogical::convertToPhysical(JoinActionRef & left_filter, JoinActi
     NameSet required_output_columns_set(required_output_columns.begin(), required_output_columns.end());
     addRequiredInputToOutput(expression_actions.left_pre_join_actions, required_output_columns_set);
     addRequiredInputToOutput(expression_actions.right_pre_join_actions, required_output_columns_set);
+    LOG_DEBUG(&Poco::Logger::get("XXXX"), "{}:{}: required_output_columns_set [{}]", __FILE__, __LINE__, fmt::join(required_output_columns_set, ", "));
+    LOG_DEBUG(&Poco::Logger::get("XXXX"), "{}:{}: required_output_columns_set [{}]", __FILE__, __LINE__, expression_actions.post_join_actions.dumpDAG());
     addRequiredInputToOutput(expression_actions.post_join_actions, required_output_columns_set);
+    LOG_DEBUG(&Poco::Logger::get("XXXX"), "{}:{}: required_output_columns_set [{}]", __FILE__, __LINE__, expression_actions.post_join_actions.dumpDAG());
 
     ActionsDAG::NodeRawConstPtrs new_outputs;
     for (const auto * output : expression_actions.post_join_actions.getOutputs())
     {
         if (required_output_columns_set.contains(output->result_name))
             new_outputs.push_back(output);
-        if (required_output_columns_set.empty())
-        {
-            new_outputs.push_back(output);
-            break;
-        }
     }
+
+    if (new_outputs.empty())
+    {
+        const auto & actions_outputs = expression_actions.post_join_actions.getOutputs();
+        if (actions_outputs.empty())
+            throw Exception(ErrorCodes::NOT_FOUND_COLUMN_IN_BLOCK, "No columns in JOIN result");
+
+        new_outputs.push_back(actions_outputs.at(0));
+    }
+
     if (post_filter)
         new_outputs.push_back(post_filter.node);
     expression_actions.post_join_actions.getOutputs() = std::move(new_outputs);
@@ -612,6 +632,7 @@ JoinPtr JoinStepLogical::convertToPhysical(JoinActionRef & left_filter, JoinActi
         expression_actions.left_pre_join_actions.getNamesAndTypesList(),
         expression_actions.right_pre_join_actions.getNamesAndTypesList());
     table_join->setUsedColumns(expression_actions.post_join_actions.getRequiredColumnsNames());
+    table_join->setJoinInfo(join_info);
 
     Block left_sample_block = blockWithColumns(expression_actions.left_pre_join_actions.getResultColumns());
     Block right_sample_block = blockWithColumns(expression_actions.right_pre_join_actions.getResultColumns());
